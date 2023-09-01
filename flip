@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# Répertoire de stockage des fichiers .flip
+flip_dir="$HOME/.flip"
+
+# Créer le répertoire s'il n'existe pas
+mkdir -p "$flip_dir"
+
+# Lire les arguments passés à la commande
+while [[ $# -gt 0 ]]; do
+    key="$1"
+
+    case $key in
+        -o|--output)
+            output_file="$2"
+            shift
+            shift
+            ;;
+        -h|--help)
+            echo "Utilisation : flip [options] [commande]"
+            echo ""
+            echo "Options :"
+            echo "  -o, --output FILE     Enregistre la commande dans le fichier spécifié (extension .flip ajoutée automatiquement si nécessaire)"
+            echo "  -h, --help            Affiche l'aide"
+            exit 0
+            ;;
+        *)
+            command_args+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# Si l'option -o a été spécifiée, utiliser le fichier de sortie spécifié
+if [ -n "$output_file" ]; then
+    # Vérifier si l'extension .flip est incluse dans le nom de fichier
+    if [[ $output_file != *".flip" ]]; then
+        output_file="$output_file.flip"
+    fi
+    flip_file="$flip_dir/$output_file"
+else
+    flip_file="$flip_dir/commands.flip"
+fi
+
+# Écrire la commande dans le fichier .flip
+if [ ${#command_args[@]} -gt 0 ]; then
+    echo "${command_args[*]}" >> "$flip_file"
+    echo "Commande enregistrée avec succès dans $flip_file"
+else
+    echo "Aucune commande spécifiée. Utilisez 'flip --help' pour afficher l'aide."
+fi
