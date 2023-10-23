@@ -18,7 +18,7 @@ First download one ([MyApp](https://github.com/dadflip/lichrod-addons/releases))
 Then install MyAppExe (individual file or with LiChroD installer)
 - launch with
   ```bash
-      myapp-exe
+  myapp-extension-installer
   ```
 and follow instructions
 
