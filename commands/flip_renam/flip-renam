@@ -1,0 +1,123 @@
+#!/bin/bash
+
+# Variables pour les fichiers de configuration
+roots_file="roots.str"
+root_directories_file="rootdirectories.str"
+excluded_file="excluded.str"
+renamed_file="renamed.str"
+
+# Fonction d'aide
+print_help() {
+  echo "Usage: $0 [-h] [-D <folder>] [-r <folder>] [-C] [-R] [-e <extension> <nomdudossierassocié>"
+  echo "Options:"
+  echo "  -h                Afficher l'aide"
+  echo "  -D <folder>       Ajouter le dossier à rootdirectories.str"
+  echo "  -r <folder>       Ajouter le dossier à roots.str"
+  echo "  -C                Créer les dossiers spécifiés dans rootdirectories.str à la racine"
+  echo "  -R                Activer l'option récursive pour trier les fichiers"
+  echo "  -e <extension> <nomdudossierassocié>    Ajouter une extension de tri associée à un dossier"
+  exit 0
+}
+
+# Fonction pour renommer un fichier
+rename_file() {
+  local old_name="$1"
+  local new_name="$2"
+  mv "$old_name" "$new_name"
+  echo "$old_name|$new_name" >> "$renamed_file"
+}
+
+# Fonction pour normaliser les chemins
+normalize_path() {
+  echo "$(realpath -s "$1")"
+}
+
+# Fonction pour trier un fichier dans un dossier
+sort_file() {
+  local file="$1"
+  local directory="$2"
+  local new_name="${directory}/$(basename "${file}")"
+  
+  if [ ! -d "$directory" ]; then
+    mkdir -p "$directory"
+  fi
+  
+  mv "$file" "$new_name"
+  echo "$file|$new_name" >> "$renamed_file"
+}
+
+# Gestion des drapeaux
+create_directories=false
+add_extension=""
+current_folder=""
+
+while getopts "hD:r:Cre:" option; do
+  case $option in
+    h) print_help;;
+    D)
+      folder="$OPTARG"
+      current_folder="$folder"
+      ;;
+    r)
+      folder="$OPTARG"
+      echo "$(normalize_path "$folder")" >> "$roots_file"
+      echo "Dossier '$folder' ajouté à roots.str."
+      ;;
+    C) create_directories=true;;
+    R) recursive=true;;
+    e)
+      if [ -n "$current_folder" ]; then
+        folder_extension="$OPTARG"
+        add_extension="$add_extension $folder_extension $current_folder"
+      else
+        echo "Aucun dossier spécifié avec -D pour ajouter l'extension."
+      fi
+      ;;
+    *) echo "Option invalide"; exit 1;;
+  esac
+done
+
+# Ajouter les extensions aux dossiers spécifiés dans rootdirectories.str
+if [ -n "$add_extension" ]; then
+  echo "$add_extension" >> "$root_directories_file"
+fi
+
+# Créer les dossiers spécifiés dans rootdirectories.str à la racine
+if [ "$create_directories" == true ]; then
+  while IFS= read -r line; do
+    root_dir="${line%% *}"
+    mkdir -p "$root_dir"
+    echo "Dossier '$root_dir' créé à la racine."
+  done < "$root_directories_file"
+fi
+
+# Parcourir les dossiers racines
+while IFS= read -r root; do
+  echo "Dossier racine: $root"
+  for item in "$root"/*; do
+    if [ -f "$item" ]; then
+      extension="${item##*.}"
+      directory=""
+      
+      # Lire le fichier de configuration des dossiers de tri
+      while IFS= read -r line; do
+        root_dir="${line%% *}"
+        extensions="${line#* }"
+        extensions=($extensions)
+        
+        if [ "$root_dir" == "$(basename "$root")" ] && [[ "${extensions[*]}" == *"$extension"* ]]; then
+          directory="$root_dir"
+          break
+        fi
+      done < "$root_directories_file"
+      
+      if [ -n "$directory" ]; then
+        sort_file "$item" "$directory"
+      else
+        echo "Extension '$extension' non gérée pour le fichier '$item'."
+        echo "$item" >> "$excluded_file"
+      fi
+    fi
+  done
+done < "$roots_file"
+

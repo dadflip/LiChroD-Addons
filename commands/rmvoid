@@ -1,0 +1,77 @@
+#!/bin/bash
+
+# Fonction d'aide
+print_help() {
+  echo "Usage: rmvoid [OPTIONS] <directory>"
+  echo "Options:"
+  echo "  -h    Affiche l'aide"
+  echo "  -R    Supprime récursivement les dossiers et fichiers vides"
+  echo "  -l    Liste les fichiers et dossiers supprimés"
+  echo "  -L    Liste les fichiers et dossiers vides sans les supprimer"
+  echo "  -f    Supprime seulement les fichiers vides"
+  echo "  -d    Supprime seulement les dossiers vides"
+  exit 0
+}
+
+# Fonction pour supprimer les fichiers vides
+delete_empty_files() {
+  find "$1" -type f -empty -print -delete
+}
+
+# Fonction pour supprimer les dossiers vides
+delete_empty_directories() {
+  find "$1" -type d -empty -print -delete
+}
+
+# Par défaut, aucune option n'est spécifiée
+recursive=false
+list_deleted=false
+list_empty=false
+delete_files=false
+delete_directories=false
+
+# Analyse des options
+while getopts "hRlLfhd" option; do
+  case $option in
+    h) print_help;;
+    R) recursive=true;;
+    l) list_deleted=true;;
+    L) list_empty=true;;
+    f) delete_files=true;;
+    d) delete_directories=true;;
+    *) echo "Option invalide"; exit 1;;
+  esac
+done
+
+# Se déplacer à l'emplacement du dossier spécifié
+shift $((OPTIND - 1))
+directory="$1"
+
+if [ -z "$directory" ]; then
+  echo "Veuillez spécifier un répertoire."
+  exit 1
+fi
+
+# Supprimer les fichiers vides si l'option est spécifiée
+if $delete_files; then
+  delete_empty_files "$directory"
+fi
+
+# Supprimer les dossiers vides si l'option est spécifiée
+if $delete_directories; then
+  delete_empty_directories "$directory"
+fi
+
+# Supprimer récursivement les dossiers et fichiers vides si l'option est spécifiée
+if $recursive; then
+  if $list_deleted; then
+    delete_empty_files "$directory"
+  fi
+fi
+
+# Liste les dossiers et fichiers vides sans les supprimer si l'option est spécifiée
+if $list_empty && ! $recursive; then
+  find "$directory" -type d -empty -print
+  find "$directory" -type f -empty -print
+fi
+
