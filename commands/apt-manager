@@ -1,0 +1,41 @@
+#!/bin/bash
+
+echo "--------------------------------------------------------------------------"
+echo " APTITUDE PACKAGE MANAGER - ACTIONS "
+echo "--------------------------------------------------------------------------"
+
+echo "
+
+list - liste les paquets selon leur nom
+search - cherche dans les descriptions de paquet
+show - affiche les détails du paquet
+install - installes les paquets
+reinstall - reinstall packages
+remove - supprime des paquets
+autoremove - Supprime automatiquement les dépendances inutilisées
+update - met à jour la liste des paquets disponibles
+upgrade - met à jour le système en installant/mettant à jour les paquets
+full-upgrade - met à jour le système en supprimant/installant/mettant à jour les paquets
+edit-sources - édite le fichier d'information source
+satisfy - satisfy dependency strings
+
+"
+
+echo "Quelle action voulez vous effectuer ?: "
+read VAR
+
+if [ "$VAR" = "list" ] || [ "$VAR" = "search" ] || [ "$VAR" = "show" ] || [ "$VAR" = "edit-sources" ] || [ "$VAR" = "satisfy" ]; then
+sudo apt $VAR
+else
+echo "Cette action va effectuer des changements sur votre système. Etes-vous sûr de vouloir continuer (o/n) ? "
+read CONFIRM
+if [ "$CONFIRM" = "o" ]; then
+sudo apt $VAR
+else
+exit
+fi
+fi
+
+echo "terminer ?"
+read none
+exit

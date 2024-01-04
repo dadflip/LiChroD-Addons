@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# Function to organize files by patterns in their names
+organize_files_by_pattern() {
+    local folder="$1"
+    local recursive_level="$2"
+
+    if [ "$recursive_level" -gt 0 ]; then
+        # Traverse non-hidden directories
+        find "$folder" -maxdepth 1 -type d ! -name ".*" | while read -r subfolder; do
+            # Call the function recursively with the subfolder
+            organize_files_by_pattern "$subfolder" "$((recursive_level - 1))"
+        done
+    fi
+
+    # Traverse non-hidden files in the current folder
+    find "$folder" -maxdepth 1 -type f | while read -r file; do
+        # Extract the file name without the path
+        file_name=$(basename "$file")
+
+        # Search for patterns in the file name using grep
+        patterns=$(echo "$file_name" | grep -oE '[A-Za-z0-9]+_[A-Za-z0-9]+')
+
+        if [ -n "$patterns" ]; then
+            # Split patterns into an array
+            IFS=$'\n' read -rd '' -a patterns_array <<< "$patterns"
+
+            # Create directories for each unique pattern and move corresponding files
+            for pattern in "${patterns_array[@]}"; do
+                pattern_dir="$folder/$pattern"
+                mkdir -p "$pattern_dir"
+                mv "$folder"/*"$pattern"* "$pattern_dir/"
+            done
+        fi
+    done
+}
+
+# Ask the user to select the root folder
+root_folder=$(zenity --file-selection --directory --title="Select the root folder")
+
+if [ -z "$root_folder" ]; then
+    zenity --error --title="Error" --text="No folder selected."
+    exit 1
+fi
+
+# Ask the user for the recursion level
+recursive_level=$(zenity --entry --title="Recursion Level" --text="Enter the recursion level (0 for no recursion):")
+
+if [[ ! "$recursive_level" =~ ^[0-9]+$ ]]; then
+    zenity --error --title="Error" --text="Invalid recursion level. Please enter a positive integer."
+    exit 1
+fi
+
+# Call the function to organize files by patterns in their names
+organize_files_by_pattern "$root_folder" "$recursive_level"
+
+zenity --info --title="Finished" --text="File organization by patterns completed in '$root_folder' (Recursion level: $recursive_level)."
+

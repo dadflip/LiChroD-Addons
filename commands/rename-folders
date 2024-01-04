@@ -1,0 +1,76 @@
+#!/bin/bash
+
+# Demandez à l'utilisateur de sélectionner le dossier racine
+dossier_racine=$(zenity --file-selection --directory --title="Select the root folder")
+
+if [ -z "$dossier_racine" ]; then
+    zenity --error --title="Error" --text="No folder selected."
+    exit 1
+fi
+
+# Demandez à l'utilisateur de choisir un style de renommage
+style=$(zenity --list --title="Choose a renaming style" --column="Style" "UPPERCASE" "lowercase" "camelCase" "MixedCase" "Numbering" "RemoveNumbering" "RemoveCharacter")
+
+if [ -z "$style" ]; then
+    zenity --error --title="Error" --text="No renaming style selected."
+    exit 1
+fi
+
+# Demandez à l'utilisateur de choisir le caractère à supprimer (ou rien pour "RemoveNumbering")
+if [ "$style" == "RemoveCharacter" ]; then
+    character_to_remove=$(zenity --entry --title="Enter the character to remove" --text="Enter the character you want to remove from file names (e.g., '_', ' ', etc.)")
+fi
+
+# Parcourir les dossiers dans la racine
+i=1
+for dossier in "$dossier_racine"/*; do
+    # Ignorer les dossiers cachés
+    if [[ -d "$dossier" && ! "$dossier" == .* ]]; then
+        nom_dossier=$(basename "$dossier")
+
+        # Remplace les espaces par des traits de soulignement
+        nom_dossier_sans_espaces=$(echo "$nom_dossier" | tr ' ' '_')
+
+        case "$style" in
+            "UPPERCASE")
+                nouveau_nom=$(echo "$nom_dossier_sans_espaces" | tr '[:lower:]' '[:upper:]')
+                ;;
+            "lowercase")
+                nouveau_nom=$(echo "$nom_dossier_sans_espaces" | tr '[:upper:]' '[:lower:]')
+                ;;
+            "camelCase")
+                nouveau_nom=$(echo "$nom_dossier_sans_espaces" | sed -r 's/(^|_)([a-z])/\U\2/g')
+                ;;
+            "MixedCase")
+                nouveau_nom=$(echo "$nom_dossier_sans_espaces" | sed -r 's/(^|_)([a-z])/\U\2/g; s/([A-Z]+)([A-Z][a-z])/\1_\2/')
+                ;;
+            "Numbering")
+                nouveau_nom=$(printf "%02d" $i)_$nom_dossier_sans_espaces
+                i=$((i + 1))
+                while [ -d "$dossier_racine/$nouveau_nom" ]; do
+                    i=$((i + 1))
+                    nouveau_nom=$(printf "%02d" $i)_$nom_dossier_sans_espaces
+                done
+                ;;
+            "RemoveNumbering")
+                # Supprime la numérotation s'il existe
+                nouveau_nom=$(echo "$nom_dossier_sans_espaces" | sed 's/^[0-9]*_//')
+                ;;
+            "RemoveCharacter")
+                # Supprime le caractère spécifié sauf l'underscore après la numérotation
+                nouveau_nom=$(echo "$nom_dossier_sans_espaces" | sed -r 's/[^0-9]_/_/g; s/[^0-9]//g')
+                ;;
+            *)
+                zenity --error --title="Error" --text="Invalid renaming style."
+                exit 1
+                ;;
+        esac
+
+        nouveau_dossier="$dossier_racine/$nouveau_nom"
+
+        mv "$dossier" "$nouveau_dossier"
+    fi
+done
+
+zenity --info --title="Finished" --text="Renaming completed according to the '$style' style."
+

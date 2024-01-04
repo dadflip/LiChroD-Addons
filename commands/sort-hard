@@ -1,0 +1,129 @@
+#!/bin/bash
+
+# Check if Zenity is installed, if not, install it
+if ! command -v zenity &> /dev/null; then
+    if command -v apt-get &> /dev/null; then
+        sudo apt-get install zenity
+    else
+        xterm -e "echo 'Unable to find a package manager. Please install Zenity manually: sudo apt install zenity'"
+        exit 1
+    fi
+fi
+
+# Ask the user to select the root folder
+root_directory=$(zenity --file-selection --directory --title="Select the root folder")
+
+if [ -z "$root_directory" ]; then
+    zenity --error --title="Error" --text="No folder selected."
+    exit 1
+fi
+
+# Create a file to store prefixes and destinations
+prefix_destination_file="$HOME/.prefixes_destinations.txt"
+
+# Function to move files matching the prefix
+move_matching_files() {
+    local prefix="$1"
+    local destination="$2"
+    for file in "$root_directory"/*; do
+        if [ -f "$file" ] && [[ "$(basename "$file")" == "$prefix"* ]]; then
+            zenity --info --title="Processing" --text="Moving file: '$file'"
+            mv "$file" "$destination/"
+        fi
+    done
+}
+
+# Function to rename files with the chosen prefix
+rename_files_with_prefix() {
+    local prefix="$1"
+    local destination="$2"  # Pass the destination path as an argument
+    new_name="$prefix"__"$file_base"
+    zenity --info --title="Processing" --text="Renaming file: $file"
+    mv "$file" "$(dirname "$file")/$new_name"
+    move_matching_files "$prefix" "$destination"
+}
+
+# Rename files: remove spaces and replace them with underscores
+find "$root_directory" -type f -name "* *" | while read file; do
+    new_name=$(echo "$file" | tr ' ' '_')
+    mv "$file" "$new_name"
+done
+
+# Create a dropdown list of already used prefixes with their associated paths
+prefix_list=()
+while read -r line; do
+    prefix=$(echo "$line" | awk '{print $1}')
+    path=$(echo "$line" | awk '{print $2}')
+    prefix_list+=("$prefix - $path")
+done < "$prefix_destination_file"
+
+# Progress bar
+progress=0
+file_count=$(find "$root_directory" -type f | wc -l)
+percentage_per_file=$((100 / file_count))
+
+# Process all files in the root directory using existing prefixes
+for file in "$root_directory"/*; do
+    # Ignore directories
+    if [ -d "$file" ]; then
+        continue
+    fi
+
+    file_base="$(basename "$file")"
+    moved=false
+
+    for prefix_with_path in "${prefix_list[@]}"; do
+        prefix=$(echo "$prefix_with_path" | cut -d ' ' -f 1)
+        path=$(echo "$prefix_with_path" | cut -d ' ' -f 3-)
+        if [[ "$file_base" == "$prefix"* ]]; then
+            zenity --info --title="Processing: $file_base" --text="Moving file: $file"
+            move_matching_files "$prefix" "$path"
+            moved=true
+        fi
+    done
+
+    if [ "$moved" == false ]; then
+        # The file wasn't moved using existing prefixes
+        # Ask the user to choose a prefix
+        chosen_prefix=$(zenity --list --title="Choose a Prefix for: $file_base" --text="Choose a prefix from the list or enter a new one:" --column="Prefix - Destination" "${prefix_list[@]}" "Enter a new prefix - Enter destination path")
+
+        if [ -z "$chosen_prefix" ]; then
+            zenity --info --title="Info" --text="No prefix selected."
+            exit 1
+        fi
+
+        prefix=$(echo "$chosen_prefix" | cut -d ' ' -f 1)
+        path=$(echo "$chosen_prefix" | cut -d ' ' -f 3-)
+
+        if [ "$prefix" == "Enter" ]; then
+            chosen_prefix=$(zenity --entry --title="Enter a Prefix for: $file_base" --text="Enter a new prefix for the file:" --entry-text "$(basename "$file" | sed 's/\.[^.]*$//')")
+            if [ -z "$chosen_prefix" ]; then
+                zenity --info --title="Info" --text="No prefix entered."
+                continue
+            else
+                destination_path=$(zenity --file-selection --directory --title="Select a destination folder for files with prefix: $chosen_prefix")
+                if [ -z "$destination_path" ]; then
+                    zenity --info --title="Info" --text="No destination selected."
+                    continue
+                fi
+
+                # Add the prefix to the text file
+                echo "$chosen_prefix $destination_path" >> "$prefix_destination_file"
+                rename_files_with_prefix "$chosen_prefix" "$destination_path"  # Pass the destination path
+                zenity --info --title="Processing: $file_base" --text="Moving file: '$file'"
+                mv "$file" "$destination_path/"
+            fi
+        else
+            rename_files_with_prefix "$prefix" "$path"  # Pass the destination path
+            zenity --info --title="Processing: '$file_base'" --text="Moving file: '$file'"
+            mv "$file" "$path"
+        fi
+    fi
+
+    # Update the progress bar
+    progress=$((progress + percentage_per_file))
+    echo "$progress"
+done
+
+zenity --info --title="Finished" --text="Files have been organized using the available prefixes."
+

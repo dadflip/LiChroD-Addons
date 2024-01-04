@@ -1,0 +1,228 @@
+#!/bin/bash
+
+# PROGRAMME DE TRI DE PHOTOS ET DE FILMS
+# Création d'un système de dossiers 'annee-mois'
+# Renommage des photos avec données EXIF (date de prise de la photo) 
+# ou à défaut date de création du fichier
+# REMARQUE : A Exécuter en une fois
+# Nécessite : package exiv2 ( apt-get install exiv2 )
+
+#-----------------------------------------------------------------------
+# MESSAGE D'ACCUEIL + TRAITEMENT DES PARAMETRES D'ENTREE
+#-----------------------------------------------------------------------
+
+echo "======================================================================"
+echo "toute copie préalable du répertoire à trier doit se faire             "
+echo "avec la commande cp -arv  [dir_source] [dir_dest]                     "
+echo "afin de conserver les informations sur les fichiers                   "
+echo "Attention : les noms des fichiers du dossier à trier seront modifiés  "
+echo "======================================================================"
+
+echo "Répertoire à trier:"
+read a
+echo "nom du répertoire trié:"
+read b
+
+
+
+
+
+# si absence de paramètres d'entrée, on les demande
+#if  test -z "$1" && test -z "$2" 		;
+#then
+#echo "PARAMETRES INCORRECTS"
+#echo "tri_photos.sh [répertoire à trier] [répertoire trié]"
+#exit
+#
+#else
+NON_TRIE=$a
+TRIE=$b
+#fi
+
+# Demande de confirmation pour poursuite
+echo "source = $NON_TRIE"
+echo "dest = $TRIE"
+read -p "ok? (o/n) " ANSWER
+
+if [ "$ANSWER" = "n" ];
+then
+exit
+fi;
+
+DIR=$(dirname $TRIE)	
+TMP="$DIR/TMP"			# un répertoire TMP à côté de TRIE
+
+mkdir -p $TMP 	# -p : si dossier inexistant, création
+mkdir -p $TRIE
+
+#-----------------------------------------------------------------------
+# CREATION DU SYSTEME DE DOSSIERS TRIES 
+# [ANNEE]-[MOIS]
+#-----------------------------------------------------------------------
+for annee in `seq 2000 2030`;
+do
+	for mois in `seq 01 12`;
+	do
+		if [ $mois -lt 10 ] 				# si mois < 10
+		then concat="$annee"-0"$mois"		#[ANNEE]-0[MOIS]
+		else concat="$annee"-"$mois"		#[ANNEE]-[MOIS]
+		fi
+	
+	mkdir $TRIE/$concat
+	done	
+
+done;
+#-----------------------------------------------------------------------
+# SUPPRESSION DES ESPACES DANS NOMS DE FICHIERS/DOSSIERS A TRIER 
+#-----------------------------------------------------------------------
+# remplace espace par '_' 
+# à exécuter plusieurs fois
+echo "SUPPRESSION DES ESPACES DANS NOMS DE FICHIERS/DOSSIERS A TRIER "
+
+for COUNT in `seq 1 6`;
+do
+find $NON_TRIE -type d -exec rename 's/ /_/g' {} \;
+done;
+
+#-----------------------------------------------------------------------
+# RENOMMAGE DES FICHIERS AVEC SUFFIXE POUR EVITER LES DOUBLONS
+#-----------------------------------------------------------------------
+# plusieurs fichiers placés dans différents répertoires
+# peuvent avoir le même nom
+# une solution consiste à les renommer avec un suffixe pseudo aléatoire
+
+echo "RENOMMAGE DES FICHIERS AVEC SUFFIXE POUR EVITER LES DOUBLONS"
+
+let "COUNT=0"
+
+for FILE in $(find $NON_TRIE/ -type f) # Parcours de Toute l'arborescence
+do
+
+	if [ -f "$FILE" ]; 
+	then extension=${FILE##*.}	 # Récupération de l'extension du fichier
+	BASEN=$(basename $FILE) 
+	BASEN=${BASEN:0:15} 		#on limite le nom  à 15 caractères
+	DIR=$(dirname $FILE)
+    mv "$FILE" "$DIR/""$BASEN"`printf "%03d" $COUNT`".$extension"
+	echo "$FILE" "$DIR/""$BASEN"`printf "%03d" $COUNT`".$extension"
+       let "COUNT=COUNT+1"
+		if [ $COUNT -gt 999 ]
+		then COUNT=0;
+		fi;
+	fi
+done;	
+	
+#-----------------------------------------------------------------------
+# COPIE ET RENOMMAGE EXIF DES FICHIERS (pour ceux dont c'est possible) 
+# NON_TRIE --> TMP
+#-----------------------------------------------------------------------
+echo "COPIE ET RENOMMAGE EXIF DES FICHIERS"
+
+for FILE in $(find $NON_TRIE/ -type f) # Parcours de Toute l'arborescence
+do
+
+BASEN=$(basename $FILE)
+
+cp -av $FILE $TMP		 	 # copie de tous les fichiers dans TEMP
+exiv2 -F rename $TMP/$BASEN  		# PERMET DE RECUPERER LES INFOS EXIF (date de la photo)
+
+done;
+
+#-----------------------------------------------------------------------
+# DEPLACEMENT DES FICHIERS TMP --> TRIES
+#-----------------------------------------------------------------------
+for FILE in ` find $TMP -type f ` ;
+do
+BASEN=$(basename $FILE)		    #[ANNEE][MOIS][JOURS]
+BASEN=${BASEN:0:4}-${BASEN:4:2} #[ANNEE]-[MOIS]
+# ${BASEN:i:j}: à partir du ième caractère, on affiche j caractères
+echo $BASEN
+mv $FILE $TRIE/$BASEN/
+done;
+
+#-----------------------------------------------------------------------
+# pour ceux dont le nom n'a pas été modifié avec exiv2
+# récupération de la date de création du fichier (à défaut de mieux)
+#-----------------------------------------------------------------------
+for FILE in ` find $TMP -type f ` ;
+do
+echo $FILE
+date=`stat -c %y $FILE | awk '{printf $1 "\n"}'` # Date de création du fichier
+echo $date
+date=${date:0:7}	# on ne conserve que [annee]-[mois]
+echo $date
+mv $FILE $TRIE/$date*
+done;
+
+#-----------------------------------------------------------------------
+# Suppression des Dossiers Vides dans TRIE
+#-----------------------------------------------------------------------
+
+find $TRIE -empty -type d -printf "%f is EMPTY and deleted\n" -exec rmdir {} \; 2>/dev/null
+rm -r $TMP	# Suppression de TMP
+
+#-----------------------------------------------------------------------
+# Suppression des Fichiers inutiles (liste non exhaustive)
+#-----------------------------------------------------------------------
+
+for FILE in ` find $TRIE -type f -name "*.rar"` ;
+do
+	echo "$FILE"
+	rm $FILE	
+done;
+
+for FILE in ` find $TRIE -type f -name "*.exe"` ;
+do
+	echo "$FILE"
+	rm $FILE	
+done;
+
+for FILE in ` find $TRIE -type f -name "*.zip"` ;
+do
+	echo "$FILE"
+	rm $FILE	
+done;
+
+for FILE in ` find $TRIE -type f -name "*.gz"` ;
+do
+	echo "$FILE"
+	rm $FILE	
+done;
+
+for FILE in ` find $TRIE -type f -name "*.db"` ;
+do
+	echo "$FILE"
+	rm $FILE	
+done;
+#-----------------------------------------------------------------------
+#		SUPPRESSION DES DOUBLONS
+#-----------------------------------------------------------------------
+# Pour une raison encore indéterminée certains doublons apparaissent
+# portant le suffixe _i
+
+mkdir -p $TRIE/Doublons
+
+for FILE in $(find $TRIE/ -type f) # Parcours de Toute l'arborescence
+do
+BASEN=$(basename $FILE)
+DERNIERES_LETTRES=${BASEN:(-6)} # ou ${BASEN: -6}
+
+for i in `seq 1 5`;
+do
+if [ "$DERNIERES_LETTRES" == "_$i.JPG" ];
+then mv -v $FILE $TRIE/Doublons/
+fi;
+
+if [ "$DERNIERES_LETTRES" == "_$i.jpg" ];
+then mv -v $FILE $TRIE/Doublons/
+fi;
+
+done;
+done;
+
+
+
+
+
+
+

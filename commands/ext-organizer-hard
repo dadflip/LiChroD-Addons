@@ -1,0 +1,62 @@
+#!/bin/bash
+
+# Function to organize files by extension
+organize_files() {
+    local folder="$1"
+    local level="$2"
+
+    # Create a directory to organize files by extension
+    extension_directory="$folder/extensions"
+    mkdir -p "$extension_directory"
+
+    # Create a directory for files without an extension
+    none_directory="$extension_directory/none"
+    mkdir -p "$none_directory"
+
+    # Traverse non-hidden files in the current folder
+    find "$folder" -maxdepth 1 -type f | while read -r file; do
+        # Extract the file extension (including the dot)
+        extension=$(echo "$file" | grep -o '\.[^.]*$')
+
+        if [ -z "$extension" ]; then
+            # If the file has no extension, move it to the "none" directory
+            mv "$file" "$none_directory/"
+        else
+            # Otherwise, move the file to the extension-specific directory (without the dot at the beginning of the directory name)
+            extension_dir="$extension_directory/extension.${extension#.}"
+            mkdir -p "$extension_dir"
+            mv "$file" "$extension_dir/"
+        fi
+    done
+
+    # Recursively process subdirectories up to the specified level
+    if [ "$level" -gt 0 ]; then
+        find "$folder" -maxdepth 1 -type d | while read -r subdir; do
+            if [ "$subdir" != "$extension_directory" ] && [ "$subdir" != "$none_directory" ]; then
+                organize_files "$subdir" "$((level - 1))"
+            fi
+        done
+    fi
+}
+
+# Ask the user to select the root folder
+root_folder=$(zenity --file-selection --directory --title="Select the root folder")
+
+if [ -z "$root_folder" ]; then
+    zenity --error --title="Error" --text="No folder selected."
+    exit 1
+fi
+
+# Ask the user to enter the level of recursion
+level=$(zenity --entry --title="Enter Recursion Level" --text="Enter the recursion level (0 to disable recursion, 1 for current folder, 2 for subfolders, etc.)")
+
+if [[ ! "$level" =~ ^[0-9]+$ ]]; then
+    zenity --error --title="Error" --text="Invalid recursion level. Please enter a valid number."
+    exit 1
+fi
+
+# Call the function to organize files by extension with the specified level of recursion
+organize_files "$root_folder" "$level"
+
+zenity --info --title="Finished" --text="File organization by extension completed in '$root_folder/extensions'."
+

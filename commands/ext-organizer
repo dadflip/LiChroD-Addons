@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Définir le répertoire personnel
+repertoire_personnel="$HOME"
+
+# Créer un répertoire pour organiser les fichiers par extension
+dossier_extension="$repertoire_personnel/extensions"
+mkdir -p "$dossier_extension"
+
+# Créer un répertoire pour les fichiers sans extension
+dossier_none="$dossier_extension/none"
+mkdir -p "$dossier_none"
+
+# Parcourir les fichiers non cachés du répertoire personnel
+for fichier in "$repertoire_personnel"/*; do
+    if [ ! -f "$fichier" ]; then
+        continue  # Ignorer les répertoires et les fichiers non réguliers
+    fi
+
+    # Extraire l'extension du fichier (y compris le point)
+    extension=$(echo "$fichier" | grep -o '\.[^.]*$')
+
+    if [ -z "$extension" ]; then
+        # Si le fichier n'a pas d'extension, le déplacer dans le répertoire "none"
+        mv "$fichier" "$dossier_none/"
+    else
+        # Sinon, déplacer le fichier dans le répertoire de l'extension (sans point au début du nom du dossier)
+        extension_dir="$dossier_extension/extension.${extension#.}"
+        mkdir -p "$extension_dir"
+        mv "$fichier" "$extension_dir/"
+    fi
+done
+

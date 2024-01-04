@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Ask the user to select the root folder
+root_folder=$(zenity --file-selection --directory --title="Select the root folder")
+
+if [ -z "$root_folder" ]; then
+    zenity --error --title="Error" --text="No folder selected."
+    exit 1
+fi
+
+# Create a directory to organize files by extension
+extension_directory="$root_folder/extensions"
+mkdir -p "$extension_directory"
+
+# Create a directory for files without an extension
+none_directory="$extension_directory/none"
+mkdir -p "$none_directory"
+
+# Traverse non-hidden files in the root folder
+find "$root_folder" -maxdepth 1 -type f | while read -r file; do
+    # Extract the file extension (including the dot)
+    extension=$(echo "$file" | grep -o '\.[^.]*$')
+
+    if [ -z "$extension" ]; then
+        # If the file has no extension, move it to the "none" directory
+        mv "$file" "$none_directory/"
+    else
+        # Otherwise, move the file to the extension-specific directory (without the dot at the beginning of the directory name)
+        extension_dir="$extension_directory/extension.${extension#.}"
+        mkdir -p "$extension_dir"
+        mv "$file" "$extension_dir/"
+    fi
+done
+
+zenity --info --title="Finished" --text="File organization by extension completed in '$extension_directory'."
+

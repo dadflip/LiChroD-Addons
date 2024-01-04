@@ -1,0 +1,78 @@
+#!/bin/bash
+
+sudo apt install -y xterm
+
+# Vérifier si Zenity est installé
+if ! command -v zenity &> /dev/null; then
+    # Zenity n'est pas installé, l'installer
+	if command -v apt-get &> /dev/null; then
+	    sudo apt-get install zenity
+	else
+	    xterm -e "echo 'Impossible de trouver le gestionnaire de paquets. Veuillez installer Zenity manuellement: sudo apt install zenity'"
+	    exit 1
+	fi
+fi
+
+# Définir le répertoire personnel
+repertoire_personnel="$HOME"
+
+# Emplacement du dossier d'extensions
+dossier_extension="$repertoire_personnel/extensions"
+
+# Définir une variable pour stocker les noms des fichiers et dossiers traités
+noms_traites=""
+
+# Fonction pour parcourir récursivement les dossiers et traiter les fichiers
+traiter_fichier() {
+    local fichier="$1"
+
+    # Obtenir le nom du fichier
+    nom_fichier=$(basename "$fichier")
+
+    # Afficher le nom du fichier
+    zenity --info --title="Traitement du fichier" --text="Traitement du fichier : $nom_fichier"
+
+    # Demander à l'utilisateur où enregistrer le fichier
+    emplacement=$(zenity --file-selection --title="Enregistrer le fichier $nom_fichier" --save --confirm-overwrite)
+
+    if [ -n "$emplacement" ]; then
+        # Déplacer le fichier vers l'emplacement sélectionné
+        mv "$fichier" "$emplacement"
+        # Ajouter le nom du fichier traité à la liste
+        noms_traites="$noms_traites\n$fichier"
+    fi
+}
+
+# Parcourir récursivement les dossiers d'extensions
+if [ -d "$dossier_extension" ]; then
+    find "$dossier_extension" -type f | while read -r fichier; do
+        traiter_fichier "$fichier"
+    done
+fi
+
+# Demander si l'utilisateur souhaite également traiter les dossiers et fichiers contenus dans les dossiers d'extensions
+reponse=$(zenity --question --title="Traitement récursif" --text="Voulez-vous traiter récursivement les dossiers et fichiers dans les dossiers d'extensions ?")
+
+if [ "$?" -eq 0 ]; then
+    # Parcourir récursivement les dossiers et traiter les fichiers
+    if [ -d "$dossier_extension" ]; then
+        find "$dossier_extension" -mindepth 1 -type d | while read -r dossier; do
+            # Obtenir le nom du dossier
+            nom_dossier=$(basename "$dossier")
+            
+            # Afficher le nom du dossier
+            zenity --info --title="Traitement du dossier" --text="Traitement du dossier : $nom_dossier"
+
+            rep=$(zenity --file-selection --title="Enregistrer le dossier $nom_dossier" --directory)
+            if [ -n "$rep" ]; then
+                mv "$dossier" "$rep/"
+                # Ajouter le nom du dossier traité à la liste
+                noms_traites="$noms_traites\n$dossier"
+            fi
+        done
+    fi
+fi
+
+# Afficher un message avec les noms des fichiers et dossiers traités
+zenity --info --title="Fichiers et dossiers traités" --text="Les fichiers et dossiers suivants ont été traités :\n$noms_traites"
+

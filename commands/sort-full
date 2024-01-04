@@ -1,0 +1,69 @@
+#!/bin/bash
+
+# Vérifier si Zenity est installé, sinon l'installer
+if ! command -v zenity &> /dev/null; then
+    if command -v apt-get &> /dev/null; then
+        sudo apt-get install zenity
+    else
+        xterm -e "echo 'Unable to find a package manager. Please install Zenity manually: sudo apt install zenity'"
+        exit 1
+    fi
+fi
+
+# Demander à l'utilisateur de choisir le dossier racine
+repertoire_racine=$(zenity --file-selection --directory --title="Select the root folder")
+
+if [ -z "$repertoire_racine" ]; then
+    zenity --error --title="Error" --text="No folder selected."
+    exit 1
+fi
+
+# Emplacement du dossier d'extensions
+dossier_extension="$repertoire_racine/extensions"
+
+# Définir une variable pour stocker les noms des fichiers et dossiers traités
+noms_traites=""
+
+# Fonction pour traiter un fichier
+traiter_fichier() {
+    local fichier="$1"
+    nom_fichier=$(basename "$fichier")
+
+    zenity --info --title="File Processing" --text="Processing file: $nom_fichier"
+
+    emplacement=$(zenity --file-selection --title="Save file $nom_fichier" --save --confirm-overwrite)
+
+    if [ -n "$emplacement" ]; then
+        mv "$fichier" "$emplacement"
+        noms_traites="$noms_traites\n$fichier"
+    fi
+}
+
+# Parcourir les fichiers dans le dossier d'extensions
+if [ -d "$dossier_extension" ]; then
+    find "$dossier_extension" -maxdepth 1 -type f | while read -r fichier; do
+        traiter_fichier "$fichier"
+    done
+fi
+
+# Demander si l'utilisateur souhaite traiter récursivement les dossiers et fichiers dans les dossiers d'extensions
+reponse=$(zenity --question --title="Recursive Processing" --text="Do you want to process folders and files within extension folders recursively?")
+
+if [ "$?" -eq 0 ]; then
+    # Parcourir récursivement les dossiers et traiter les fichiers
+    if [ -d "$dossier_extension" ]; then
+        find "$dossier_extension" -mindepth 1 -type d | while read -r dossier; do
+            nom_dossier=$(basename "$dossier")
+            zenity --info --title="Folder Processing" --text="Processing folder: $nom_dossier"
+            emplacement=$(zenity --file-selection --title="Save folder $nom_dossier" --directory)
+            if [ -n "$emplacement" ]; then
+                mv "$dossier" "$emplacement/"
+                noms_traites="$noms_traites\n$dossier"
+            fi
+        done
+    fi
+fi
+
+# Afficher un message avec les noms des fichiers et dossiers traités
+zenity --info --title="Processed Files and Folders" --text="The following files and folders have been processed:\n$noms_traites"
+
