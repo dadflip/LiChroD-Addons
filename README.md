@@ -20,9 +20,9 @@ Or if you just need MyApp software, you can use this link:
 Download [MyApp](https://github.com/dadflip/myapp/releases).
 
 # How to install an addon ?
-First download one ([Addons](https://github.com/dadflip/lichrod-addons/releases)) or more addons (zip archive : **addons.zip**)
+First download one ([Addons](https://github.com/dadflip/lichrod-addons/releases))
 
-Then install MyAppExe (individual file in **MyApp-Exe.zip** or with LiChroD installer)
+Then install MyAppExe (individual file in **([MyApp Exe](https://github.com/dadflip/MyAppExe))** --- **([Releases](https://github.com/dadflip/MyAppExe/releases))** or with LiChroD installer)
 - launch with
   ```bash
   myapp-extension-installer
